@@ -39,8 +39,8 @@ import java.math.BigDecimal;
 @Value
 public class JsonSalesOrderLine
 {
-	@JsonProperty("productCode")
-	String productCode;
+	@JsonProperty("gtinCode")
+	String gtinCode;
 
 	@JsonProperty("qty")
 	BigDecimal qty;
@@ -49,18 +49,23 @@ public class JsonSalesOrderLine
 	@JsonInclude(JsonInclude.Include.NON_NULL)
 	BigDecimal price;
 
+	@JsonProperty("description")
+	@JsonInclude(JsonInclude.Include.NON_NULL)
+	String description;
+
 	@Builder
 	@JsonCreator
 	private JsonSalesOrderLine(
-			@JsonProperty("productCode") @NonNull final String productCode,
+			@JsonProperty("gtinCode") @NonNull final String gtinCode,
 			@JsonProperty("qty") @NonNull final BigDecimal qty,
-			@JsonProperty("price") @Nullable final BigDecimal price)
+			@JsonProperty("price") @Nullable final BigDecimal price,
+			@JsonProperty("description") @Nullable final String description)
 	{
 		Check.assumeGreaterThanZero(qty, "qty");
 
-		this.productCode = productCode;
+		this.gtinCode = gtinCode;
 		this.qty = qty;
 		this.price = price;
+		this.description = description;
 	}
-
 }

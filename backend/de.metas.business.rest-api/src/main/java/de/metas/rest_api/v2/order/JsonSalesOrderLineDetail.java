@@ -36,8 +36,9 @@ import java.math.BigDecimal;
 public class JsonSalesOrderLineDetail
 {
 	@NonNull String productCode;
+	@Nullable String gtinCode;
+	@Nullable String description;
 	@NonNull BigDecimal quantity;
 	@Nullable BigDecimal lineAmount;
 	@Nullable BigDecimal unitPrice;
 }
-

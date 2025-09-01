@@ -35,6 +35,7 @@ import de.metas.document.DocBaseType;
 import de.metas.document.DocTypeId;
 import de.metas.document.DocTypeQuery;
 import de.metas.document.IDocTypeDAO;
+import de.metas.gs1.GTIN;
 import de.metas.logging.LogManager;
 import de.metas.order.IOrderBL;
 import de.metas.order.OrderFactory;
@@ -66,6 +67,7 @@ import org.adempiere.util.lang.impl.TableRecordReference;
 import org.compiere.model.I_C_Order;
 import de.metas.interfaces.I_C_OrderLine;
 import org.compiere.model.I_C_UOM;
+import org.compiere.model.I_M_Product;
 import org.compiere.util.Env;
 import org.slf4j.Logger;
 import org.springframework.context.annotation.Profile;
@@ -206,13 +208,23 @@ public class SalesOrderRestController
 
 	private void createOrderLine(final OrderFactory salesOrderFactory, final JsonSalesOrderLine salesOrderLine)
 	{
-		final IProductDAO productsRepo = Services.get(IProductDAO.class);
 		final IProductBL productBL = Services.get(IProductBL.class);
 
-		final ProductId productId = productsRepo.retrieveProductIdByValue(salesOrderLine.getProductCode());
+		// Try to find product by GTIN first
+		ProductId productId = null;
+		try
+		{
+			final GTIN gtin = GTIN.ofString(salesOrderLine.getGtinCode());
+			productId = productBL.getProductIdByGTIN(gtin, Env.getClientId()).orElse(null);
+		}
+		catch (Exception e)
+		{
+			// If GTIN parsing fails, try to find by barcode as fallback
+			productId = productBL.getProductIdByBarcode(salesOrderLine.getGtinCode(), Env.getClientId()).orElse(null);
+		}
 		if (productId == null)
 		{
-			throw new AdempiereException("@NotFound@ M_Product_ID@ (@Value=" + salesOrderLine.getProductCode() + ")");
+			throw new AdempiereException("@NotFound@ M_Product_ID@ (@GTIN=" + salesOrderLine.getGtinCode() + ")");
 		}
 
 		final I_C_UOM uom = productBL.getStockUOM(productId);
@@ -221,7 +233,8 @@ public class SalesOrderRestController
 		salesOrderFactory.newOrderLine()
 				.productId(productId)
 				.addQty(qty)
-				.manualPrice(salesOrderLine.getPrice());
+				.manualPrice(salesOrderLine.getPrice())
+				.description(salesOrderLine.getDescription());
 	}
 
 	private JsonSalesOrder toSalesOrder(final I_C_Order salesOrderRecord, final String docTypeName)
@@ -269,12 +282,31 @@ public class SalesOrderRestController
 		final ProductId productId = ProductId.ofRepoId(orderLine.getM_Product_ID());
 		final String productCode = productsRepo.retrieveProductValueByProductId(productId);
 		
+		// Get the GTIN code from the product
+		String gtinCode = null;
+		try
+		{
+			// Try to get the GTIN from the product
+			final I_M_Product product = productsRepo.getById(productId);
+			if (product != null && product.getGTIN() != null && !product.getGTIN().trim().isEmpty())
+			{
+				gtinCode = product.getGTIN();
+			}
+		}
+		catch (Exception e)
+		{
+			// If we can't get the GTIN, leave it as null
+			logger.debug("Could not retrieve GTIN for product {}, error: {}", productId, e.getMessage());
+		}
+		
 		final BigDecimal quantity = orderLine.getQtyOrdered();
 		final BigDecimal unitPrice = orderLine.getPriceActual();
 		final BigDecimal lineAmount = quantity.multiply(unitPrice);
 		
 		return JsonSalesOrderLineDetail.builder()
 				.productCode(productCode)
+				.gtinCode(gtinCode)
+				.description(orderLine.getDescription())
 				.quantity(quantity)
 				.lineAmount(lineAmount)
 				.unitPrice(unitPrice)
