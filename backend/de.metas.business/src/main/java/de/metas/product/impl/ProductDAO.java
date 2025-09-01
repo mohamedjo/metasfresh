@@ -195,7 +195,6 @@ public class ProductDAO implements IProductDAO
 		final int productRepoId = queryBL.createQueryBuilder(I_M_Product.class, ctx, ITrx.TRXNAME_None)
 				.addEqualsFilter(I_M_Product.COLUMNNAME_Value, value)
 				.addOnlyActiveRecordsFilter()
-				.addOnlyContextClient(ctx)
 				.create()
 				.firstIdOnly();
 		return ProductId.ofRepoIdOrNull(productRepoId);

@@ -96,6 +96,13 @@
 			<artifactId>de.metas.postfinance.webui</artifactId>
 			<version>${metasfresh.version}</version>
 		</dependency>
+
+		<!-- Business REST API for sales orders -->
+		<dependency>
+			<groupId>de.metas.business</groupId>
+			<artifactId>de.metas.business.rest-api-impl</artifactId>
+			<version>${metasfresh.version}</version>
+		</dependency>
 	</dependencies>
 
 	<build>

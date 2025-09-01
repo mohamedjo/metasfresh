@@ -46,3 +46,4 @@ de.metas.material/dispo-service/application.properties
 
 /de.metas.adempiere.adempiere/base/src/main/java/de/metas/tbp/
 /metasfresh-dist/dist/src/main/docker/db/postgresql_data_dir/data/
+/de.metas.postfinance.base/src/main/java-xjc/de/metas/postfinance/ybinvoice/v2/

@@ -36,7 +36,9 @@ import de.metas.document.DocTypeId;
 import de.metas.document.DocTypeQuery;
 import de.metas.document.IDocTypeDAO;
 import de.metas.logging.LogManager;
+import de.metas.order.IOrderBL;
 import de.metas.order.OrderFactory;
+import de.metas.order.IOrderDAO;
 import de.metas.organization.OrgId;
 import de.metas.product.IProductBL;
 import de.metas.product.IProductDAO;
@@ -47,7 +49,9 @@ import de.metas.rest_api.v2.order.JsonSalesOrder;
 import de.metas.rest_api.v2.order.JsonSalesOrderAttachment;
 import de.metas.rest_api.v2.order.JsonSalesOrderCreateRequest;
 import de.metas.rest_api.v2.order.JsonSalesOrderLine;
+import de.metas.rest_api.v2.order.JsonSalesOrderLineDetail;
 import de.metas.rest_api.v2.util.JsonConverters;
+import de.metas.rest_api.v2.order.sales.OrderService;
 import de.metas.util.Check;
 import de.metas.util.Services;
 import de.metas.util.web.MetasfreshRestAPIConstants;
@@ -60,6 +64,7 @@ import org.adempiere.ad.trx.api.ITrxManager;
 import org.adempiere.exceptions.AdempiereException;
 import org.adempiere.util.lang.impl.TableRecordReference;
 import org.compiere.model.I_C_Order;
+import de.metas.interfaces.I_C_OrderLine;
 import org.compiere.model.I_C_UOM;
 import org.compiere.util.Env;
 import org.slf4j.Logger;
@@ -75,11 +80,15 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.time.ZonedDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 @RestController
 @RequestMapping(value = MetasfreshRestAPIConstants.ENDPOINT_API_V2 + "/orders/sales")
-@Profile(Profiles.PROFILE_App)
+@Profile(Profiles.PROFILE_Webui)
 public class SalesOrderRestController
 {
 	private static final Logger logger = LogManager.getLogger(SalesOrderRestController.class);
@@ -176,7 +185,6 @@ public class SalesOrderRestController
 
 		final BPartnerQuery query = BPartnerQuery.builder()
 				.bpartnerValue(request.getShipBPartnerCode())
-				.onlyOrgId(OrgId.ANY)
 				.onlyOrgId(Env.getOrgId())
 				.failIfNotExists(true)
 				.build();
@@ -193,7 +201,7 @@ public class SalesOrderRestController
 
 		final I_C_Order salesOrderRecord = salesOrderFactory.createAndComplete();
 
-		return toSalesOrder(salesOrderRecord);
+		return toSalesOrder(salesOrderRecord, request.getDocTypeName());
 	}
 
 	private void createOrderLine(final OrderFactory salesOrderFactory, final JsonSalesOrderLine salesOrderLine)
@@ -216,11 +224,60 @@ public class SalesOrderRestController
 				.manualPrice(salesOrderLine.getPrice());
 	}
 
-	private JsonSalesOrder toSalesOrder(final I_C_Order salesOrderRecord)
+	private JsonSalesOrder toSalesOrder(final I_C_Order salesOrderRecord, final String docTypeName)
 	{
+		final IOrderDAO orderDAO = Services.get(IOrderDAO.class);
+		final List<I_C_OrderLine> orderLines = orderDAO.retrieveOrderLines(salesOrderRecord);
+		
+		// Calculate totals
+		BigDecimal totalAmount = BigDecimal.ZERO;
+		BigDecimal totalQuantity = BigDecimal.ZERO;
+		final List<JsonSalesOrderLineDetail> lineDetails = orderLines.stream()
+				.map(this::toSalesOrderLineDetail)
+				.collect(ImmutableList.toImmutableList());
+		
+		// Calculate totals from lines
+		for (final JsonSalesOrderLineDetail lineDetail : lineDetails)
+		{
+			if (lineDetail.getLineAmount() != null)
+			{
+				totalAmount = totalAmount.add(lineDetail.getLineAmount());
+			}
+			totalQuantity = totalQuantity.add(lineDetail.getQuantity());
+		}
+		
+		// Calculate expiry date (24 hours from now) and format it in a readable way
+		final ZonedDateTime expiryDateTime = ZonedDateTime.now(ZoneId.systemDefault()).plusHours(24);
+		final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z");
+		final String formattedExpiryDate = expiryDateTime.format(formatter);
+		
 		return JsonSalesOrder.builder()
 				.salesOrderId(String.valueOf(salesOrderRecord.getC_Order_ID()))
 				.documentNo(salesOrderRecord.getDocumentNo())
+				.totalAmount(totalAmount)
+				.totalQuantity(totalQuantity)
+				.orderLines(lineDetails)
+				.expiryDate(expiryDateTime)
+				.formattedExpiryDate(formattedExpiryDate)
+				.docTypeName(docTypeName)
+				.build();
+	}
+	
+	private JsonSalesOrderLineDetail toSalesOrderLineDetail(final I_C_OrderLine orderLine)
+	{
+		final IProductDAO productsRepo = Services.get(IProductDAO.class);
+		final ProductId productId = ProductId.ofRepoId(orderLine.getM_Product_ID());
+		final String productCode = productsRepo.retrieveProductValueByProductId(productId);
+		
+		final BigDecimal quantity = orderLine.getQtyOrdered();
+		final BigDecimal unitPrice = orderLine.getPriceActual();
+		final BigDecimal lineAmount = quantity.multiply(unitPrice);
+		
+		return JsonSalesOrderLineDetail.builder()
+				.productCode(productCode)
+				.quantity(quantity)
+				.lineAmount(lineAmount)
+				.unitPrice(unitPrice)
 				.build();
 	}
 

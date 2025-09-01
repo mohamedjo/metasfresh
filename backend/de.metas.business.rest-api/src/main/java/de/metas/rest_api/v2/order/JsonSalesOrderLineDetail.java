@@ -7,8 +7,6 @@ import lombok.extern.jackson.Jacksonized;
 
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
-import java.time.ZonedDateTime;
-import java.util.List;
 
 /*
  * #%L
@@ -35,14 +33,11 @@ import java.util.List;
 @Value
 @Builder
 @Jacksonized
-public class JsonSalesOrder
+public class JsonSalesOrderLineDetail
 {
-	@NonNull String salesOrderId;
-	@NonNull String documentNo;
-	@Nullable String docTypeName;
-	@Nullable BigDecimal totalAmount;
-	@Nullable BigDecimal totalQuantity;
-	@Nullable List<JsonSalesOrderLineDetail> orderLines;
-	@Nullable ZonedDateTime expiryDate;
-	@Nullable String formattedExpiryDate;
+	@NonNull String productCode;
+	@NonNull BigDecimal quantity;
+	@Nullable BigDecimal lineAmount;
+	@Nullable BigDecimal unitPrice;
 }
+

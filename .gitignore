@@ -71,3 +71,5 @@ misc/services/camel/de-metas-camel-shipping/tmp/
 .github/integrate
 
 *.jasper
+/backend/de.metas.postfinance.base/src/main/java-xjc/de/metas/postfinance/ybinvoice/v2/
+/backend/de.metas.postfinance.base/src/main/java-xjc/de/metas/postfinance/customerregistration/
